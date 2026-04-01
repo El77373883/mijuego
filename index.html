@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Street Fighter Web</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background: #1a1a2e; 
+            overflow: hidden; 
+            touch-action: none; 
+            font-family: Arial, sans-serif;
+        }
+        #game-container { position: relative; width: 100vw; height: 100vh; }
+        canvas { display: block; }
+        
+        /* Barras de vida */
+        #ui-layer { 
+            position: absolute; 
+            top: 10px; 
+            left: 0; 
+            width: 100%; 
+            display: flex; 
+            justify-content: space-between; 
+            padding: 10px 20px; 
+            z-index: 100;
+        }
+        .health-container { 
+            width: 40%; 
+            background: #333; 
+            border: 3px solid #fff; 
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .health-fill { 
+            height: 25px; 
+            width: 100%; 
+            transition: width 0.3s; 
+        }
+        #p1-health { background: linear-gradient(90deg, #ff4444, #ff0000); }
+        #p2-health { background: linear-gradient(90deg, #4444ff, #0000ff); }
+        
+        /* Nombres */
+        .player-name {
+            color: #fff;
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 5px;
+            text-shadow: 2px 2px 4px #000;
+        }
+        
+        /* Controles táctiles */
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 100;
+        }
+        
+        .control-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 3px solid #fff;
+            font-size: 24px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        
+        .btn:active { transform: scale(0.9); opacity: 0.8; }
+        
+        .btn-move { background: rgba(255, 255, 255, 0.3); color: #fff; }
+        .btn-attack { background: rgba(255, 0, 0, 0.5); color: #fff; }
+        .btn-jump { background: rgba(0, 255, 0, 0.5); color: #fff; }
+        .btn-p2 { background: rgba(0, 0, 255, 0.3); color: #fff; }
+        
+        /* Mensaje de KO */
+        #ko-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 60px;
+            font-weight: bold;
+            color: #ff0;
+            text-shadow: 4px 4px 8px #000;
+            display: none;
+            z-index: 200;
+        }
+        
+        /* Botón reiniciar */
+        #restart-btn {
+            position: absolute;
+            top: 60%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 30px;
+            font-size: 20px;
+            background: #ff0;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            display: none;
+            z-index: 200;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+</head>
+<body>
+    <div id="game-container">
+        <div id="ui-layer">
+            <div>
+                <div class="player-name">JUGADOR 1</div>
+                <div class="health-container">
+                    <div id="p1-health" class="health-fill"></div>
+                </div>
+            </div>
+            <div>
+                <div class="player-name" style="text-align: right;">JUGADOR 2</div>
+                <div class="health-container">
+                    <div id="p2-health" class="health-fill"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="ko-message">¡KO!</div>
+        <button id="restart-btn" onclick="restartGame()">Jugar de Nuevo</button>
+        
+        <div id="controls">
+            <!-- Controles Jugador 1 -->
+            <div class="control-group">
+                <div class="btn btn-move" id="p1-left">◀</div>
+                <div class="btn btn-move" id="p1-right">▶</div>
+                <div class="btn btn-jump" id="p1-jump">▲</div>
+                <div class="btn btn-attack" id="p1-attack">👊</div>
+            </div>
+            
+            <!-- Controles Jugador 2 -->
+            <div class="control-group">
+                <div class="btn btn-p2 btn-move" id="p2-left">◀</div>
+                <div class="btn btn-p2 btn-move" id="p2-right">▶</div>
+                <div class="btn btn-p2 btn-jump" id="p2-jump">▲</div>
+                <div class="btn btn-p2 btn-attack" id="p2-attack">👊</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let game;
+        let player1, player2;
+        let p1Health = 100;
+        let p2Health = 100;
+        let gameOver = false;
+        let p1Attacking = false;
+        let p2Attacking = false;
+
+        const config = {
+            type: Phaser.AUTO,
+            parent: 'game-container',
+            width: window.innerWidth,
+            height: window.innerHeight - 200,
+            physics: {
+                default: 'arcade',
+                arcade: { 
+                    gravity: { y: 800 }, 
+                    debug: false 
+                }
+            },
+            scene: { preload, create, update }
+        };
+
+        function initGame() {
+            if (game) game.destroy(true);
+            game = new Phaser.Game(config);
+        }
+
+        function preload() {
+            // Aquí puedes cargar sprites después
+            // this.load.spritesheet('fighter', 'fighter.png', { frameWidth: 64, frameHeight: 64 });
+        }
+
+        function create() {
+            // Fondo
+            this.add.rectangle(400, 300, 800, 600, 0x1a1a2e);
+            
+            // Suelo
+            const ground = this.add.rectangle(400, 550, 800, 50, 0x333333);
+            this.physics.add.existing(ground, true);
+            
+            // Jugador 1 (Rojo)
+            player1 = this.add.rectangle(150, 400, 50, 100, 0xff4444);
+            this.physics.add.existing(player1);
+            player1.body.setCollideWorldBounds(true);
+            player1.body.setMaxVelocity(300, 500);
+            
+            // Jugador 2 (Azul)
+            player2 = this.add.rectangle(650, 400, 50, 100, 0x4444ff);
+            this.physics.add.existing(player2);
+            player2.body.setCollideWorldBounds(true);
+            player2.body.setMaxVelocity(300, 500);
+            
+            // Colisiones
+            this.physics.add.collider(player1, ground);
+            this.physics.add.collider(player2, ground);
+            this.physics.add.collider(player1, player2);
+            
+            // Resetear valores
+            p1Health = 100;
+            p2Health = 100;
+            gameOver = false;
+            p1Attacking = false;
+            p2Attacking = false;
+            updateHealthBars();
+            document.getElementById('ko-message').style.display = 'none';
+            document.getElementById('restart-btn').style.display = 'none';
+            
+            // Configurar controles táctiles
+            setupTouchControls(this);
+        }
+
+        function setupTouchControls(scene) {
+            // Jugador 1
+            const p1Left = document.getElementById('p1-left');
+            const p1Right = document.getElementById('p1-right');
+            const p1Jump = document.getElementById('p1-jump');
+            const p1Attack = document.getElementById('p1-attack');
+            
+            // Jugador 2
+            const p2Left = document.getElementById('p2-left');
+            const p2Right = document.getElementById('p2-right');
+            const p2Jump = document.getElementById('p2-jump');
+            const p2Attack = document.getElementById('p2-attack');
+            
+            // P1 Movimiento
+            p1Left.addEventListener('touchstart', (e) => { 
+                e.preventDefault(); 
+                scene.p1MoveLeft = true; 
+            });
+            p1Left.addEventListener('touchend', (e) => { 
+                e.preventDefault(); 
+                scene.p1MoveLeft = false; 
+            });
+            
+            p1Right.addEventListener('touchstart', (e) => { 
+                e.preventDefault(); 
+                scene.p1MoveRight = true; 
+            });
+            p1Right.addEventListener('touchend', (e) => { 
+                e.preventDefault(); 
+                scene.p1MoveRight = false; 
+            });
+            
+            // P1 Salto
+            p1Jump.addEventListener('touchstart', (e) => { 
+                e.preventDefault(); 
+                if (player1.body.touching.down) {
+                    player1.body.setVelocityY(-400);
+                }
+            });
+            
+            // P1 Ataque
+            p1Attack.addEventListener('touchstart', (e) => { 
+                e.preventDefault(); 
+                if (!p1Attacking && !gameOver) {
+                    p1Attacking = true;
+                    performAttack(player1, player2, 'p2');
+                    setTimeout(() => { p1Attacking = false; }, 300);
+                }
+            });
+            
+            // P2 Movimiento
+            p2Left.addEventListener('touchstart', (e) => { 
+                e.preventDefault(); 
+                scene.p2MoveLeft = true; 
+            });
+            p2Left.addEventListener('touchend', (e) => { 
+                e.preventDefault(); 
+                scene.p2MoveLeft = false; 
+            });
+            
+            p2Right.addEventListener('touchstart', (e) => { 
+                e.preventDefault(); 
+                scene.p2MoveRight = true; 
+            });
+            p2Right.addEventListener('touchend', (e) => { 
+                e.preventDefault(); 
+                scene.p2MoveRight = false; 
+            });
+            
+            // P2 Salto
+            p2Jump.addEventListener('touchstart', (e) => { 
+                e.preventDefault(); 
+                if (player2.body.touching.down) {
+                    player2.body.setVelocityY(-400);
+                }
+            });
+            
+            // P2 Ataque
+            p2Attack.addEventListener('touchstart', (e) => { 
+                e.preventDefault(); 
+                if (!p2Attacking && !gameOver) {
+                    p2Attacking = true;
+                    performAttack(player2, player1, 'p1');
+                    setTimeout(() => { p2Attacking = false; }, 300);
+                }
+            });
+        }
+
+        function performAttack(attacker, defender, defenderType) {
+            const distance = Phaser.Math.Distance.Between(attacker.x, attacker.y, defender.x, defender.y);
+            
+            if (distance < 120) {
+                // Golpe exitoso
+                if (defenderType === 'p2') {
+                    p2Health -= 10;
+                    defender.body.setVelocityX(attacker.x < defender.x ? 150 : -150);
+                    defender.setTint(0xffffff);
+                    setTimeout(() => { defender.clearTint(); }, 200);
+                } else {
+                    p1Health -= 10;
+                    defender.body.setVelocityX(attacker.x < defender.x ? 150 : -150);
+                    defender.setTint(0xffffff);
+                    setTimeout(() => { defender.clearTint(); }, 200);
+                }
+                
+                updateHealthBars();
+                checkKO();
+            }
+        }
+
+        function updateHealthBars() {
+            document.getElementById('p1-health').style.width = p1Health + '%';
+            document.getElementById('p2-health').style.width = p2Health + '%';
+        }
+
+        function checkKO() {
+            if (p1Health <= 0 || p2Health <= 0) {
+                gameOver = true;
+                document.getElementById('ko-message').style.display = 'block';
+                document.getElementById('restart-btn').style.display = 'block';
+                
+                if (p1Health <= 0) {
+                    player1.setTint(0x555555);
+                }
+                if (p2Health <= 0) {
+                    player2.setTint(0x555555);
+                }
+            }
+        }
+
+        function update() {
+            if (gameOver) return;
+            
+            // Jugador 1
+            player1.body.setVelocityX(0);
+            if (this.p1MoveLeft) {
+                player1.body.setVelocityX(-200);
+            } else if (this.p1MoveRight) {
+                player1.body.setVelocityX(200);
+            }
+            
+            // Jugador 2
+            player2.body.setVelocityX(0);
+            if (this.p2MoveLeft) {
+                player2.body.setVelocityX(-200);
+            } else if (this.p2MoveRight) {
+                player2.body.setVelocityX(200);
+            }
+        }
+
+        function restartGame() {
+            initGame();
+        }
+
+        // Iniciar juego
+        initGame();
+
+        // Ajustar al rotar pantalla
+        window.addEventListener('resize', () => {
+            if (game) {
+                game.scale.resize(window.innerWidth, window.innerHeight - 200);
+            }
+        });
+    </script>
+</body>
+</html>
