@@ -209,16 +209,16 @@
         }
 
         function preload() {
-            // Cargar sprite sheets
-            this.load.spritesheet('player-sprites', 'player-spritesheet.png', { 
+            // Cargar sprite sheets CON PNG EN MAYÚSCULAS
+            this.load.spritesheet('player-sprites', 'player-spritesheet.PNG', { 
                 frameWidth: 64, 
                 frameHeight: 64 
             });
-            this.load.spritesheet('enemy-sprites', 'enemy-spritesheet.png', { 
+            this.load.spritesheet('enemy-sprites', 'enemy-spritesheet.PNG', { 
                 frameWidth: 64, 
                 frameHeight: 64 
             });
-            this.load.image('bg-arena', 'background.png');
+            this.load.image('bg-arena', 'background.PNG');
         }
 
         function create() {
@@ -283,7 +283,7 @@
                 repeat: 0
             });
             
-            // Crear animaciones del enemigo (usando frames similares)
+            // Crear animaciones del enemigo
             this.anims.create({
                 key: 'enemy-idle',
                 frames: this.anims.generateFrameNumbers('enemy-sprites', { start: 0, end: 2 }),
@@ -330,7 +330,7 @@
             // CPU
             cpu = this.add.sprite(650, 400, 'enemy-sprites');
             cpu.setScale(1.5);
-            cpu.setFlipX(true); // Voltear para que mire al jugador
+            cpu.setFlipX(true);
             this.physics.add.existing(cpu);
             cpu.body.setCollideWorldBounds(true);
             cpu.body.setSize(40, 80);
@@ -466,7 +466,6 @@
                 checkKO();
             }
             
-            // Animación de ataque
             if (attacker === player) {
                 player.play('punch', true);
                 playerAttacking = true;
@@ -500,7 +499,6 @@
                     defender.play('hit', true);
                 }
                 
-                // Efecto visual
                 const specialEffect = scene.add.circle(attacker.x, attacker.y - 30, 60, 0xffff00, 0.7);
                 scene.tweens.add({
                     targets: specialEffect,
@@ -631,7 +629,6 @@
         function update() {
             if (gameOver) return;
             
-            // Movimiento jugador
             player.body.setVelocityX(0);
             if (this.p1MoveLeft) {
                 player.body.setVelocityX(-200);
@@ -652,7 +649,6 @@
                 currentAnim = 'idle';
             }
             
-            // Actualizar IA
             updateAI.call(this);
         }
 
