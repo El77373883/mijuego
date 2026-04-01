@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Street Fighter - 1 Player</title>
+    <title>Street Fighter - Animado</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -15,7 +15,6 @@
         #game-container { position: relative; width: 100vw; height: 100vh; }
         canvas { display: block; }
         
-        /* Barras de vida */
         #ui-layer { 
             position: absolute; 
             top: 10px; 
@@ -49,7 +48,6 @@
             text-shadow: 2px 2px 4px #000;
         }
         
-        /* Timer */
         #timer {
             position: absolute;
             top: 10px;
@@ -62,7 +60,6 @@
             z-index: 100;
         }
         
-        /* Controles táctiles */
         #controls {
             position: absolute;
             bottom: 20px;
@@ -73,10 +70,7 @@
             z-index: 100;
         }
         
-        .control-group {
-            display: flex;
-            gap: 15px;
-        }
+        .control-group { display: flex; gap: 15px; }
         
         .btn {
             width: 70px;
@@ -100,7 +94,6 @@
         .btn-jump { background: rgba(0, 255, 0, 0.5); }
         .btn-special { background: rgba(255, 255, 0, 0.5); }
         
-        /* Mensaje de resultado */
         #result-message {
             position: absolute;
             top: 40%;
@@ -131,7 +124,6 @@
             font-weight: bold;
         }
         
-        /* Instrucciones */
         #instructions {
             position: absolute;
             bottom: 150px;
@@ -193,6 +185,7 @@
         let cpuAttacking = false;
         let playerSpecialReady = true;
         let cpuSpecialReady = true;
+        let currentAnim = 'idle';
 
         const config = {
             type: Phaser.AUTO,
@@ -216,68 +209,143 @@
         }
 
         function preload() {
-            // Cargar sprites desde URLs (puedes cambiarlas por tus propias imágenes)
-            // Personaje jugador (usamos placeholder coloreado)
-            // Para sprites reales, usa: this.load.spritesheet('player', 'url.png', { frameWidth: 64, frameHeight: 64 });
-            
-            // Fondo animado (gradient)
-            this.load.image('bg-layer1', 'https://labs.phaser.io/assets/skies/space3.png');
-            this.load.image('bg-layer2', 'https://labs.phaser.io/assets/skies/space4.png');
+            // Cargar sprite sheets
+            this.load.spritesheet('player-sprites', 'player-spritesheet.png', { 
+                frameWidth: 64, 
+                frameHeight: 64 
+            });
+            this.load.spritesheet('enemy-sprites', 'enemy-spritesheet.png', { 
+                frameWidth: 64, 
+                frameHeight: 64 
+            });
+            this.load.image('bg-arena', 'background.png');
         }
 
         function create() {
-            // === FONDO ANIMADO (Parallax) ===
-            this.bgLayer1 = this.add.tileSprite(400, 300, 800, 600, 'bg-layer1');
-            this.bgLayer2 = this.add.tileSprite(400, 300, 800, 600, 'bg-layer2');
+            // Fondo
+            if (this.textures.exists('bg-arena')) {
+                this.add.image(400, 300, 'bg-arena').setScale(1.5);
+            } else {
+                this.add.rectangle(400, 300, 800, 600, 0x1a1a2e);
+            }
             
             // Suelo
             const ground = this.add.rectangle(400, 550, 800, 50, 0x222222);
             this.physics.add.existing(ground, true);
             
-            // === JUGADOR ===
-            // Crear contenedor para el personaje (puedes reemplazar con sprite)
-            player = this.add.container(150, 400);
+            // Crear animaciones del jugador
+            this.anims.create({
+                key: 'idle',
+                frames: this.anims.generateFrameNumbers('player-sprites', { start: 0, end: 2 }),
+                frameRate: 4,
+                repeat: -1
+            });
             
-            // Cuerpo (cámbialo por sprite después)
-            const playerBody = this.add.rectangle(0, 0, 50, 100, 0x0066ff);
-            const playerHead = this.add.circle(0, -60, 25, 0xffccaa);
-            const playerArm = this.add.rectangle(30, -20, 40, 15, 0x0066ff);
+            this.anims.create({
+                key: 'walk',
+                frames: this.anims.generateFrameNumbers('player-sprites', { start: 3, end: 6 }),
+                frameRate: 8,
+                repeat: -1
+            });
             
-            player.add([playerBody, playerHead, playerArm]);
-            playerArm.setName('arm');
+            this.anims.create({
+                key: 'punch',
+                frames: this.anims.generateFrameNumbers('player-sprites', { start: 7, end: 9 }),
+                frameRate: 10,
+                repeat: 0
+            });
             
+            this.anims.create({
+                key: 'kick',
+                frames: this.anims.generateFrameNumbers('player-sprites', { start: 10, end: 13 }),
+                frameRate: 10,
+                repeat: 0
+            });
+            
+            this.anims.create({
+                key: 'jump',
+                frames: this.anims.generateFrameNumbers('player-sprites', { start: 14, end: 16 }),
+                frameRate: 8,
+                repeat: 0
+            });
+            
+            this.anims.create({
+                key: 'hit',
+                frames: this.anims.generateFrameNumbers('player-sprites', { start: 17, end: 18 }),
+                frameRate: 8,
+                repeat: 0
+            });
+            
+            this.anims.create({
+                key: 'victory',
+                frames: this.anims.generateFrameNumbers('player-sprites', { start: 19, end: 20 }),
+                frameRate: 4,
+                repeat: 0
+            });
+            
+            // Crear animaciones del enemigo (usando frames similares)
+            this.anims.create({
+                key: 'enemy-idle',
+                frames: this.anims.generateFrameNumbers('enemy-sprites', { start: 0, end: 2 }),
+                frameRate: 4,
+                repeat: -1
+            });
+            
+            this.anims.create({
+                key: 'enemy-walk',
+                frames: this.anims.generateFrameNumbers('enemy-sprites', { start: 3, end: 6 }),
+                frameRate: 8,
+                repeat: -1
+            });
+            
+            this.anims.create({
+                key: 'enemy-punch',
+                frames: this.anims.generateFrameNumbers('enemy-sprites', { start: 7, end: 9 }),
+                frameRate: 10,
+                repeat: 0
+            });
+            
+            this.anims.create({
+                key: 'enemy-kick',
+                frames: this.anims.generateFrameNumbers('enemy-sprites', { start: 10, end: 12 }),
+                frameRate: 10,
+                repeat: 0
+            });
+            
+            this.anims.create({
+                key: 'enemy-hit',
+                frames: this.anims.generateFrameNumbers('enemy-sprites', { start: 13, end: 14 }),
+                frameRate: 8,
+                repeat: 0
+            });
+            
+            // JUGADOR
+            player = this.add.sprite(150, 400, 'player-sprites');
+            player.setScale(1.5);
             this.physics.add.existing(player);
             player.body.setCollideWorldBounds(true);
-            player.body.setMaxVelocity(300, 500);
-            player.body.setSize(50, 100);
+            player.body.setSize(40, 80);
+            player.play('idle');
             
-            // === CPU (Enemigo) ===
-            cpu = this.add.container(650, 400);
-            
-            const cpuBody = this.add.rectangle(0, 0, 50, 100, 0xff3300);
-            const cpuHead = this.add.circle(0, -60, 25, 0xffccaa);
-            const cpuArm = this.add.rectangle(-30, -20, 40, 15, 0xff3300);
-            
-            cpu.add([cpuBody, cpuHead, cpuArm]);
-            cpuArm.setName('arm');
-            
+            // CPU
+            cpu = this.add.sprite(650, 400, 'enemy-sprites');
+            cpu.setScale(1.5);
+            cpu.setFlipX(true); // Voltear para que mire al jugador
             this.physics.add.existing(cpu);
             cpu.body.setCollideWorldBounds(true);
-            cpu.body.setMaxVelocity(300, 500);
-            cpu.body.setSize(50, 100);
+            cpu.body.setSize(40, 80);
+            cpu.play('enemy-idle');
             
             // Colisiones
             this.physics.add.collider(player, ground);
             this.physics.add.collider(cpu, ground);
             this.physics.add.collider(player, cpu);
             
-            // === IA de la CPU ===
+            // IA de la CPU
             this.cpuAI = {
                 moveLeft: false,
                 moveRight: false,
-                jump: false,
-                attack: false,
-                reactionTime: 500,
+                reactionTime: 600,
                 lastDecision: 0
             };
             
@@ -290,27 +358,25 @@
             cpuAttacking = false;
             playerSpecialReady = true;
             cpuSpecialReady = true;
+            currentAnim = 'idle';
             
             updateHealthBars();
             updateTimer();
             document.getElementById('result-message').style.display = 'none';
             document.getElementById('restart-btn').style.display = 'none';
             
-            // Iniciar timer
+            // Timer
             timerInterval = setInterval(() => {
                 if (!gameOver && timer > 0) {
                     timer--;
                     updateTimer();
-                    if (timer === 0) {
-                        endGameByTime();
-                    }
+                    if (timer === 0) endGameByTime();
                 }
             }, 1000);
             
-            // Configurar controles táctiles
             setupTouchControls(this);
             
-            // Texto de inicio
+            // Texto FIGHT
             this.readyText = this.add.text(400, 300, '¡FIGHT!', { 
                 fontSize: '60px', 
                 fill: '#ff0',
@@ -330,7 +396,6 @@
             const btnAttack = document.getElementById('btn-attack');
             const btnSpecial = document.getElementById('btn-special');
             
-            // Movimiento
             btnLeft.addEventListener('touchstart', (e) => { 
                 e.preventDefault(); 
                 scene.p1MoveLeft = true; 
@@ -349,23 +414,24 @@
                 scene.p1MoveRight = false; 
             });
             
-            // Salto
             btnJump.addEventListener('touchstart', (e) => { 
                 e.preventDefault(); 
-                if (player.body.touching.down) {
+                if (player.body.touching.down && !playerAttacking) {
                     player.body.setVelocityY(-450);
+                    if (currentAnim !== 'punch' && currentAnim !== 'kick') {
+                        player.play('jump', true);
+                        currentAnim = 'jump';
+                    }
                 }
             });
             
-            // Ataque
             btnAttack.addEventListener('touchstart', (e) => { 
                 e.preventDefault(); 
-                if (!playerAttacking && !gameOver) {
+                if (!playerAttacking && !gameOver && currentAnim !== 'punch' && currentAnim !== 'kick') {
                     performAttack(player, cpu, 'cpu', scene);
                 }
             });
             
-            // Especial
             btnSpecial.addEventListener('touchstart', (e) => { 
                 e.preventDefault(); 
                 if (playerSpecialReady && !gameOver) {
@@ -379,31 +445,42 @@
         function performAttack(attacker, defender, defenderType, scene) {
             const distance = Phaser.Math.Distance.Between(attacker.x, attacker.y, defender.x, defender.y);
             
-            if (distance < 100) {
-                // Golpe exitoso
+            if (distance < 120) {
                 if (defenderType === 'cpu') {
-                    cpuHealth -= 8;
+                    cpuHealth -= 10;
                     defender.body.setVelocityX(attacker.x < defender.x ? 100 : -100);
-                    flashCharacter(defender, scene);
+                    defender.play('enemy-hit', true);
+                    scene.time.delayedCall(300, () => {
+                        if (!gameOver) defender.play('enemy-idle');
+                    });
                 } else {
-                    p1Health -= 8;
+                    p1Health -= 10;
                     defender.body.setVelocityX(attacker.x < defender.x ? 100 : -100);
-                    flashCharacter(defender, scene);
-                }
-                
-                // Animación de brazo
-                const arm = attacker.getByName('arm');
-                if (arm) {
-                    scene.tweens.add({
-                        targets: arm,
-                        angle: -90,
-                        duration: 100,
-                        yoyo: true
+                    defender.play('hit', true);
+                    scene.time.delayedCall(300, () => {
+                        if (!gameOver) defender.play('idle');
                     });
                 }
                 
                 updateHealthBars();
                 checkKO();
+            }
+            
+            // Animación de ataque
+            if (attacker === player) {
+                player.play('punch', true);
+                playerAttacking = true;
+                scene.time.delayedCall(400, () => {
+                    playerAttacking = false;
+                    if (!gameOver && currentAnim !== 'kick') player.play('idle');
+                });
+            } else {
+                cpu.play('enemy-punch', true);
+                cpuAttacking = true;
+                scene.time.delayedCall(400, () => {
+                    cpuAttacking = false;
+                    if (!gameOver) cpu.play('enemy-idle');
+                });
             }
         }
 
@@ -411,17 +488,16 @@
             const distance = Phaser.Math.Distance.Between(attacker.x, attacker.y, defender.x, defender.y);
             
             if (distance < 200) {
-                // Ataque especial (más daño)
                 if (defenderType === 'cpu') {
-                    cpuHealth -= 25;
+                    cpuHealth -= 30;
                     defender.body.setVelocityX(attacker.x < defender.x ? 200 : -200);
                     defender.body.setVelocityY(-200);
-                    flashCharacter(defender, scene);
+                    defender.play('enemy-hit', true);
                 } else {
-                    p1Health -= 25;
+                    p1Health -= 30;
                     defender.body.setVelocityX(attacker.x < defender.x ? 200 : -200);
                     defender.body.setVelocityY(-200);
-                    flashCharacter(defender, scene);
+                    defender.play('hit', true);
                 }
                 
                 // Efecto visual
@@ -434,16 +510,10 @@
                     onComplete: () => specialEffect.destroy()
                 });
                 
+                attacker.play('kick', true);
                 updateHealthBars();
                 checkKO();
             }
-        }
-
-        function flashCharacter(character, scene) {
-            character.setTint(0xffffff);
-            scene.time.delayedCall(100, () => {
-                character.clearTint();
-            });
         }
 
         function updateHealthBars() {
@@ -453,11 +523,7 @@
 
         function updateTimer() {
             document.getElementById('timer').innerText = timer;
-            if (timer <= 10) {
-                document.getElementById('timer').style.color = '#f00';
-            } else {
-                document.getElementById('timer').style.color = '#ff0';
-            }
+            document.getElementById('timer').style.color = timer <= 10 ? '#f00' : '#ff0';
         }
 
         function checkKO() {
@@ -475,11 +541,10 @@
                 } else if (p1Health <= 0) {
                     resultMsg.innerText = '¡PERDISTE!';
                     resultMsg.style.color = '#f00';
-                    player.setTint(0x555555);
                 } else {
                     resultMsg.innerText = '¡GANASTE!';
                     resultMsg.style.color = '#0f0';
-                    cpu.setTint(0x555555);
+                    player.play('victory', true);
                 }
             }
         }
@@ -495,6 +560,7 @@
             if (p1Health > cpuHealth) {
                 resultMsg.innerText = '¡GANASTE!';
                 resultMsg.style.color = '#0f0';
+                player.play('victory', true);
             } else if (cpuHealth > p1Health) {
                 resultMsg.innerText = '¡PERDISTE!';
                 resultMsg.style.color = '#f00';
@@ -505,38 +571,31 @@
         }
 
         function updateAI(scene) {
-            if (gameOver) return;
+            if (gameOver || cpuAttacking) return;
             
             const now = Date.now();
             if (now - this.cpuAI.lastDecision > this.cpuAI.reactionTime) {
                 this.cpuAI.lastDecision = now;
                 
                 const distance = Phaser.Math.Distance.Between(player.x, player.y, cpu.x, cpu.y);
-                
-                // Decidir acción
                 const random = Math.random();
                 
                 if (distance > 150) {
-                    // Acercarse al jugador
                     if (player.x < cpu.x) {
                         this.cpuAI.moveLeft = true;
                         this.cpuAI.moveRight = false;
+                        cpu.setFlipX(false);
                     } else {
                         this.cpuAI.moveLeft = false;
                         this.cpuAI.moveRight = true;
+                        cpu.setFlipX(true);
                     }
                 } else {
-                    // Está cerca, decidir si atacar o alejarse
-                    if (random < 0.4) {
-                        // Atacar
+                    if (random < 0.5) {
                         performAttack(cpu, player, 'player', scene);
-                    } else if (random < 0.6) {
-                        // Saltar
-                        if (cpu.body.touching.down) {
-                            cpu.body.setVelocityY(-400);
-                        }
-                    } else if (random < 0.8) {
-                        // Alejar
+                    } else if (random < 0.7 && cpu.body.touching.down) {
+                        cpu.body.setVelocityY(-400);
+                    } else if (random < 0.9) {
                         if (player.x < cpu.x) {
                             this.cpuAI.moveRight = true;
                             this.cpuAI.moveLeft = false;
@@ -545,13 +604,11 @@
                             this.cpuAI.moveLeft = true;
                         }
                     } else {
-                        // Esperar
                         this.cpuAI.moveLeft = false;
                         this.cpuAI.moveRight = false;
                     }
                 }
                 
-                // Ataque especial ocasional
                 if (random < 0.1 && cpuSpecialReady && distance < 200) {
                     performSpecial(cpu, player, 'player', scene);
                     cpuSpecialReady = false;
@@ -559,34 +616,43 @@
                 }
             }
             
-            // Aplicar movimiento CPU
             cpu.body.setVelocityX(0);
             if (this.cpuAI.moveLeft) {
-                cpu.body.setVelocityX(-150);
+                cpu.body.setVelocityX(-120);
+                if (!cpuAttacking) cpu.play('enemy-walk');
             } else if (this.cpuAI.moveRight) {
-                cpu.body.setVelocityX(150);
+                cpu.body.setVelocityX(120);
+                if (!cpuAttacking) cpu.play('enemy-walk');
+            } else if (!cpuAttacking && cpu.body.touching.down) {
+                cpu.play('enemy-idle');
             }
         }
 
         function update() {
             if (gameOver) return;
             
-            // === MOVIMIENTO JUGADOR ===
+            // Movimiento jugador
             player.body.setVelocityX(0);
             if (this.p1MoveLeft) {
                 player.body.setVelocityX(-200);
-                // Voltear sprite
-                player.setScale(-1, 1);
+                player.setFlipX(true);
+                if (!playerAttacking && player.body.touching.down) {
+                    player.play('walk', true);
+                    currentAnim = 'walk';
+                }
             } else if (this.p1MoveRight) {
                 player.body.setVelocityX(200);
-                player.setScale(1, 1);
+                player.setFlipX(false);
+                if (!playerAttacking && player.body.touching.down) {
+                    player.play('walk', true);
+                    currentAnim = 'walk';
+                }
+            } else if (!playerAttacking && player.body.touching.down) {
+                player.play('idle', true);
+                currentAnim = 'idle';
             }
             
-            // === FONDO ANIMADO (Parallax) ===
-            this.bgLayer1.tilePositionX += 0.5;
-            this.bgLayer2.tilePositionX += 1;
-            
-            // === IA CPU ===
+            // Actualizar IA
             updateAI.call(this);
         }
 
@@ -594,10 +660,8 @@
             initGame();
         }
 
-        // Iniciar juego
         initGame();
 
-        // Ajustar al rotar pantalla
         window.addEventListener('resize', () => {
             if (game) {
                 game.scale.resize(window.innerWidth, window.innerHeight - 200);
