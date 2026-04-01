@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>Street Fighter - iPhone</title>
+    <title>Street Fighter - Animado</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -38,7 +38,7 @@
             transition: width 0.3s; 
         }
         #p1-health { background: linear-gradient(90deg, #ff4444, #ff0000); }
-        #cpu-health { background: linear-gradient(90deg, #44ff44, #00ff00); }
+        #cpu-health { background: linear-gradient(90deg, #4444ff, #0000ff); }
         
         .player-name {
             color: #fff;
@@ -162,6 +162,7 @@
 
     <script>
         let game, player, cpu, p1Health = 100, cpuHealth = 100, gameOver = false, timer = 99, timerInterval;
+        let playerAttacking = false, cpuAttacking = false, currentAnim = 'idle';
 
         const config = {
             type: Phaser.AUTO,
@@ -182,45 +183,141 @@
         }
 
         function preload() {
-            // Usar imágenes individuales en lugar de sprite sheets
-            this.load.image('player', 'player.PNG');
-            this.load.image('enemy', 'enemy.PNG');
+            // Cargar sprite sheets con fondo transparente
+            this.load.spritesheet('player', 'player-spritesheet.PNG', { 
+                frameWidth: 100, 
+                frameHeight: 100 
+            });
+            this.load.spritesheet('enemy', 'enemy-spritesheet.PNG', { 
+                frameWidth: 100, 
+                frameHeight: 100 
+            });
             this.load.image('bg', 'background.PNG');
         }
 
         function create() {
-            // Fondo - ajustar al tamaño de pantalla
-            this.add.image(window.innerWidth/2, window.innerHeight/2, 'bg')
-                .setDisplaySize(window.innerWidth, window.innerHeight - 150);
+            // Fondo
+            if (this.textures.exists('bg')) {
+                this.add.image(window.innerWidth/2, (window.innerHeight - 150)/2, 'bg')
+                    .setDisplaySize(window.innerWidth, window.innerHeight - 150);
+            } else {
+                this.add.rectangle(0, 0, window.innerWidth, window.innerHeight - 150, 0x1a1a2e).setOrigin(0);
+            }
             
             // Suelo
-            const ground = this.add.rectangle(window.innerWidth/2, window.innerHeight - 100, window.innerWidth, 50, 0x222222);
+            const groundY = window.innerHeight - 100;
+            const ground = this.add.rectangle(window.innerWidth/2, groundY, window.innerWidth, 50, 0x222222);
             this.physics.add.existing(ground, true);
             
-            // JUGADOR - más pequeño para que quepa
-            player = this.add.sprite(100, window.innerHeight - 200, 'player');
-            player.setScale(0.3); // Mucho más pequeño
+            // Crear animaciones del JUGADOR (azul)
+            this.anims.create({
+                key: 'idle',
+                frames: this.anims.generateFrameNumbers('player', { start: 0, end: 2 }),
+                frameRate: 4,
+                repeat: -1
+            });
+            
+            this.anims.create({
+                key: 'walk',
+                frames: this.anims.generateFrameNumbers('player', { start: 3, end: 6 }),
+                frameRate: 8,
+                repeat: -1
+            });
+            
+            this.anims.create({
+                key: 'punch',
+                frames: this.anims.generateFrameNumbers('player', { start: 7, end: 9 }),
+                frameRate: 10,
+                repeat: 0
+            });
+            
+            this.anims.create({
+                key: 'kick',
+                frames: this.anims.generateFrameNumbers('player', { start: 10, end: 13 }),
+                frameRate: 10,
+                repeat: 0
+            });
+            
+            this.anims.create({
+                key: 'hit',
+                frames: this.anims.generateFrameNumbers('player', { start: 14, end: 15 }),
+                frameRate: 8,
+                repeat: 0
+            });
+            
+            this.anims.create({
+                key: 'victory',
+                frames: this.anims.generateFrameNumbers('player', { start: 16, end: 17 }),
+                frameRate: 4,
+                repeat: 0
+            });
+            
+            // Crear animaciones del ENEMIGO (rojo)
+            this.anims.create({
+                key: 'enemy-idle',
+                frames: this.anims.generateFrameNumbers('enemy', { start: 0, end: 2 }),
+                frameRate: 4,
+                repeat: -1
+            });
+            
+            this.anims.create({
+                key: 'enemy-walk',
+                frames: this.anims.generateFrameNumbers('enemy', { start: 3, end: 6 }),
+                frameRate: 8,
+                repeat: -1
+            });
+            
+            this.anims.create({
+                key: 'enemy-punch',
+                frames: this.anims.generateFrameNumbers('enemy', { start: 7, end: 9 }),
+                frameRate: 10,
+                repeat: 0
+            });
+            
+            this.anims.create({
+                key: 'enemy-kick',
+                frames: this.anims.generateFrameNumbers('enemy', { start: 10, end: 12 }),
+                frameRate: 10,
+                repeat: 0
+            });
+            
+            this.anims.create({
+                key: 'enemy-hit',
+                frames: this.anims.generateFrameNumbers('enemy', { start: 13, end: 14 }),
+                frameRate: 8,
+                repeat: 0
+            });
+            
+            // JUGADOR
+            player = this.add.sprite(100, groundY - 50, 'player');
+            player.setScale(1);
             this.physics.add.existing(player);
             player.body.setCollideWorldBounds(true);
-            player.body.setSize(50, 100);
+            player.body.setSize(50, 90);
+            player.play('idle');
             
             // CPU
-            cpu = this.add.sprite(window.innerWidth - 100, window.innerHeight - 200, 'enemy');
-            cpu.setScale(0.3);
+            cpu = this.add.sprite(window.innerWidth - 100, groundY - 50, 'enemy');
+            cpu.setScale(1);
             cpu.setFlipX(true);
             this.physics.add.existing(cpu);
             cpu.body.setCollideWorldBounds(true);
-            cpu.body.setSize(50, 100);
+            cpu.body.setSize(50, 90);
+            cpu.play('enemy-idle');
             
             // Colisiones
             this.physics.add.collider(player, ground);
             this.physics.add.collider(cpu, ground);
+            this.physics.add.collider(player, cpu);
             
             // Reset
             p1Health = 100;
             cpuHealth = 100;
             gameOver = false;
             timer = 99;
+            playerAttacking = false;
+            cpuAttacking = false;
+            currentAnim = 'idle';
             updateHealthBars();
             updateTimer();
             document.getElementById('result-message').style.display = 'none';
@@ -237,10 +334,23 @@
             
             setupTouchControls(this);
             
-            // FIGHT text
-            this.add.text(window.innerWidth/2, window.innerHeight/3, '¡FIGHT!', { 
-                fontSize: '50px', fill: '#ff0', stroke: '#000', strokeThickness: 6 
+            // Texto FIGHT
+            const fightText = this.add.text(window.innerWidth/2, window.innerHeight/3, '¡FIGHT!', { 
+                fontSize: '50px', 
+                fill: '#ff0',
+                stroke: '#000',
+                strokeThickness: 6,
+                fontStyle: 'bold'
             }).setOrigin(0.5);
+            
+            this.time.delayedCall(2000, () => {
+                this.tweens.add({
+                    targets: fightText,
+                    alpha: 0,
+                    duration: 500,
+                    onComplete: () => fightText.destroy()
+                });
+            });
             
             this.cpuAI = { moveLeft: false, moveRight: false, reactionTime: 700, lastDecision: 0 };
         }
@@ -258,11 +368,14 @@
             btnRight.addEventListener('touchend', (e) => { e.preventDefault(); scene.p1MoveRight = false; });
             btnJump.addEventListener('touchstart', (e) => { 
                 e.preventDefault(); 
-                if (player.body.touching.down) player.body.setVelocityY(-400);
+                if (player.body.touching.down && !playerAttacking) {
+                    player.body.setVelocityY(-450);
+                    player.play('kick', true);
+                }
             });
             btnAttack.addEventListener('touchstart', (e) => { 
                 e.preventDefault(); 
-                if (!gameOver) performAttack(player, cpu, 'cpu', scene);
+                if (!playerAttacking && !gameOver) performAttack(player, cpu, 'cpu', scene);
             });
             btnSpecial.addEventListener('touchstart', (e) => { 
                 e.preventDefault(); 
@@ -272,16 +385,40 @@
 
         function performAttack(attacker, defender, defenderType, scene) {
             const distance = Phaser.Math.Distance.Between(attacker.x, attacker.y, defender.x, defender.y);
-            if (distance < 100) {
+            if (distance < 120) {
                 if (defenderType === 'cpu') {
                     cpuHealth -= 10;
-                    defender.body.setVelocityX(attacker.x < defender.x ? 80 : -80);
+                    defender.body.setVelocityX(attacker.x < defender.x ? 100 : -100);
+                    defender.play('enemy-hit', true);
+                    scene.time.delayedCall(300, () => {
+                        if (!gameOver && !cpuAttacking) defender.play('enemy-idle');
+                    });
                 } else {
                     p1Health -= 10;
-                    defender.body.setVelocityX(attacker.x < defender.x ? 80 : -80);
+                    defender.body.setVelocityX(attacker.x < defender.x ? 100 : -100);
+                    defender.play('hit', true);
+                    scene.time.delayedCall(300, () => {
+                        if (!gameOver && !playerAttacking) defender.play('idle');
+                    });
                 }
                 updateHealthBars();
                 checkKO();
+            }
+            
+            if (attacker === player) {
+                player.play('punch', true);
+                playerAttacking = true;
+                scene.time.delayedCall(400, () => {
+                    playerAttacking = false;
+                    if (!gameOver && player.body.touching.down) player.play('idle');
+                });
+            } else {
+                cpu.play('enemy-punch', true);
+                cpuAttacking = true;
+                scene.time.delayedCall(400, () => {
+                    cpuAttacking = false;
+                    if (!gameOver && cpu.body.touching.down) cpu.play('enemy-idle');
+                });
             }
         }
 
@@ -290,11 +427,26 @@
             if (distance < 150) {
                 if (defenderType === 'cpu') {
                     cpuHealth -= 25;
-                    defender.body.setVelocityX(attacker.x < defender.x ? 150 : -150);
+                    defender.body.setVelocityX(attacker.x < defender.x ? 200 : -200);
+                    defender.body.setVelocityY(-200);
+                    defender.play('enemy-hit', true);
                 } else {
                     p1Health -= 25;
-                    defender.body.setVelocityX(attacker.x < defender.x ? 150 : -150);
+                    defender.body.setVelocityX(attacker.x < defender.x ? 200 : -200);
+                    defender.body.setVelocityY(-200);
+                    defender.play('hit', true);
                 }
+                
+                const effect = scene.add.circle(attacker.x, attacker.y - 30, 50, 0xffff00, 0.7);
+                scene.tweens.add({
+                    targets: effect,
+                    scale: 2,
+                    alpha: 0,
+                    duration: 300,
+                    onComplete: () => effect.destroy()
+                });
+                
+                attacker.play('kick', true);
                 updateHealthBars();
                 checkKO();
             }
@@ -317,8 +469,17 @@
                 const resultMsg = document.getElementById('result-message');
                 resultMsg.style.display = 'block';
                 document.getElementById('restart-btn').style.display = 'block';
-                resultMsg.innerText = p1Health <= 0 ? '¡PERDISTE!' : '¡GANASTE!';
-                resultMsg.style.color = p1Health <= 0 ? '#f00' : '#0f0';
+                if (p1Health <= 0 && cpuHealth <= 0) {
+                    resultMsg.innerText = '¡EMPATE!';
+                    resultMsg.style.color = '#fff';
+                } else if (p1Health <= 0) {
+                    resultMsg.innerText = '¡PERDISTE!';
+                    resultMsg.style.color = '#f00';
+                } else {
+                    resultMsg.innerText = '¡GANASTE!';
+                    resultMsg.style.color = '#0f0';
+                    player.play('victory', true);
+                }
             }
         }
 
@@ -328,11 +489,21 @@
             const resultMsg = document.getElementById('result-message');
             resultMsg.style.display = 'block';
             document.getElementById('restart-btn').style.display = 'block';
-            resultMsg.innerText = p1Health > cpuHealth ? '¡GANASTE!' : '¡PERDISTE!';
+            if (p1Health > cpuHealth) {
+                resultMsg.innerText = '¡GANASTE!';
+                resultMsg.style.color = '#0f0';
+                player.play('victory', true);
+            } else if (cpuHealth > p1Health) {
+                resultMsg.innerText = '¡PERDISTE!';
+                resultMsg.style.color = '#f00';
+            } else {
+                resultMsg.innerText = '¡EMPATE!';
+                resultMsg.style.color = '#fff';
+            }
         }
 
         function updateAI(scene) {
-            if (gameOver) return;
+            if (gameOver || cpuAttacking) return;
             const now = Date.now();
             if (now - this.cpuAI.lastDecision > this.cpuAI.reactionTime) {
                 this.cpuAI.lastDecision = now;
@@ -350,25 +521,56 @@
                         cpu.setFlipX(true);
                     }
                 } else {
-                    if (random < 0.4) performAttack(cpu, player, 'player', scene);
-                    else if (random < 0.6 && cpu.body.touching.down) cpu.body.setVelocityY(-350);
-                    else { this.cpuAI.moveLeft = false; this.cpuAI.moveRight = false; }
+                    if (random < 0.5) {
+                        performAttack(cpu, player, 'player', scene);
+                    } else if (random < 0.7 && cpu.body.touching.down) {
+                        cpu.body.setVelocityY(-400);
+                    } else if (random < 0.9) {
+                        if (player.x < cpu.x) {
+                            this.cpuAI.moveRight = true;
+                            this.cpuAI.moveLeft = false;
+                        } else {
+                            this.cpuAI.moveRight = false;
+                            this.cpuAI.moveLeft = true;
+                        }
+                    } else {
+                        this.cpuAI.moveLeft = false;
+                        this.cpuAI.moveRight = false;
+                    }
                 }
             }
             cpu.body.setVelocityX(0);
-            if (this.cpuAI.moveLeft) cpu.body.setVelocityX(-100);
-            else if (this.cpuAI.moveRight) cpu.body.setVelocityX(100);
+            if (this.cpuAI.moveLeft) {
+                cpu.body.setVelocityX(-120);
+                if (!cpuAttacking && cpu.body.touching.down) cpu.play('enemy-walk');
+            } else if (this.cpuAI.moveRight) {
+                cpu.body.setVelocityX(120);
+                if (!cpuAttacking && cpu.body.touching.down) cpu.play('enemy-walk');
+            } else if (!cpuAttacking && cpu.body.touching.down) {
+                cpu.play('enemy-idle');
+            }
         }
 
         function update() {
             if (gameOver) return;
             player.body.setVelocityX(0);
             if (this.p1MoveLeft) {
-                player.body.setVelocityX(-150);
+                player.body.setVelocityX(-180);
                 player.setFlipX(true);
+                if (!playerAttacking && player.body.touching.down) {
+                    player.play('walk', true);
+                    currentAnim = 'walk';
+                }
             } else if (this.p1MoveRight) {
-                player.body.setVelocityX(150);
+                player.body.setVelocityX(180);
                 player.setFlipX(false);
+                if (!playerAttacking && player.body.touching.down) {
+                    player.play('walk', true);
+                    currentAnim = 'walk';
+                }
+            } else if (!playerAttacking && player.body.touching.down) {
+                player.play('idle', true);
+                currentAnim = 'idle';
             }
             updateAI.call(this);
         }
